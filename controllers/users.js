@@ -86,11 +86,23 @@ export const signup = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+export const getUser = async (req, res) => {
+  try {
+    const userId = req.userId;
+    console.log(userId);
+    const user = await User.findById(userId);
+    res.status(200).json({
+      user,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 export const signout = (req, res) => {
   // sau này nếu dùng cookie thì mới cần
 
   res.status(200).json({
-    message: 'Đăng xuất thành công!'
-  })
-}
+    message: "Đăng xuất thành công!",
+  });
+};
