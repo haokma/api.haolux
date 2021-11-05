@@ -1,6 +1,8 @@
-import Order from "../models/order.js";
 import Cart from "../models/cart.js";
-import UserAddress from "../models/address.js";
+import Order from "../models/order.js";
+import Products from "../models/products.js";
+import sha256 from "sha256";
+import User from "../models/user.js";
 
 export const getOrders = async (req, res) => {
   try {
@@ -47,9 +49,47 @@ export const getOrder = async (req, res) => {
   }
 };
 
+export const checkOrder = async (req, res) => {
+  try {
+    let total = 0;
+    const { cart, totalAmount } = req.body;
+
+    for (let i = 0; i < cart.length; i++) {
+      const productId = cart[i].productId;
+      const payablePrice = cart[i].payablePrice;
+      const product = await Products.findById(productId);
+      total += Number(product.price) * cart[i].purchaseQty;
+      if (Number(payablePrice) !== Number(product.price)) {
+        return res.status(400).json({ message: "Khôn như mày quê tao đầy" });
+      }
+    }
+    if (total !== totalAmount) {
+      return res.status(400).json({ message: "Khôn như mày quê tao đầy" });
+    }
+    const key = sha256(`nguyenchihao${cart}${totalAmount}`);
+
+    res.status(200).json({
+      status: "success",
+      message: "Ban da tao don hang thanh cong",
+      key,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
 export const addOrder = async (req, res) => {
   try {
+    if (
+      req.body.key !==
+      sha256(`nguyenchihao${req.body.cart}${req.body.totalAmount}`)
+    ) {
+      return res.status(400).json({ message: "Có lỗi xảy ra" });
+    }
     const userId = req.userId;
+    const user = await User.findById(userId);
+    if (user.money < req.body.totalAmount) {
+      return res.status(400).json({ message: "Không đủ tiền" });
+    }
 
     const cardId = req.body.cardId;
 
@@ -79,6 +119,15 @@ export const addOrder = async (req, res) => {
     const order = await Order.create(tempOrder);
 
     await Cart.deleteOne({ _id: cardId });
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        money: user.money - req.body.totalAmount,
+      },
+      {
+        new: true,
+      }
+    );
 
     res.status(200).json({
       status: "success",

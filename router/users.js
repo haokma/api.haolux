@@ -1,6 +1,6 @@
 import express from "express";
 
-import { login, signout, signup } from "../controllers/users.js";
+import { getUser, login, signout, signup } from "../controllers/users.js";
 import {
   adminRequire,
   getNewToken,
@@ -9,7 +9,7 @@ import {
 } from "../middleware/auth.js";
 
 const router = express.Router();
-
+router.get("/getUser", signinRequire, getUser);
 router.post("/login", login);
 router.post("/signup", signup);
 

@@ -5,6 +5,7 @@ import {
   getOrders,
   updateOrder,
   deleteOrder,
+  checkOrder,
 } from "../controllers/order.js";
 import { signinRequire } from "../middleware/auth.js";
 import { createAddressValidate } from "../validate/address.js";
@@ -13,6 +14,13 @@ import runvalidate from "../validate/runvalidate.js";
 const router = express.Router();
 
 router.get("/", signinRequire, getOrders);
+router.post(
+  "/check",
+  signinRequire,
+  createAddressValidate,
+  runvalidate,
+  checkOrder
+);
 
 router.post(
   "/create",
