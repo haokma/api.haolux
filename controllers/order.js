@@ -54,24 +54,33 @@ export const checkOrder = async (req, res) => {
     let total = 0;
     const { cart, totalAmount } = req.body;
 
-    for (let i = 0; i < cart.length; i++) {
-      const productId = cart[i].productId;
-      const payablePrice = cart[i].payablePrice;
-      const product = await Products.findById(productId);
-      total += Number(product.price) * cart[i].purchaseQty;
-      if (Number(payablePrice) !== Number(product.price)) {
-        return res.status(400).json({ message: "Khôn như mày quê tao đầy" });
-      }
+    const productId = cart[0].productId;
+    const payablePrice = cart[0].payablePrice;
+    const product = await Products.findById(productId);
+    const quantity = cart[0].purchaseQty;
+
+    total += Number(product.price) * quantity;
+
+    if (Number(payablePrice) !== Number(product.price)) {
+      return res.status(400).json({ message: "Giá sản phẩm đã bị thay đổi" });
     }
     if (total !== totalAmount) {
-      return res.status(400).json({ message: "Khôn như mày quê tao đầy" });
+      return res.status(400).json({ message: "Tổng số tiền đã bị thay đổi" });
     }
-    const key = sha256(`nguyenchihao${cart}${totalAmount}`);
+
+    const payment = `id_product=${productId}&price=${payablePrice}&count=${quantity}&totalAmount=${totalAmount}`;
+    const key = `nguyenchihao`;
+    const signature = sha256(`${key}${payment}`);
 
     res.status(200).json({
       status: "success",
-      message: "Ban da tao don hang thanh cong",
-      key,
+      message: "Ban da tao ra key thành công cho đơn hàng ",
+      data: {
+        payablePrice,
+        quantity,
+        totalAmount,
+      },
+      signature,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -79,16 +88,26 @@ export const checkOrder = async (req, res) => {
 };
 export const addOrder = async (req, res) => {
   try {
-    if (
-      req.body.key !==
-      sha256(`nguyenchihao${req.body.cart}${req.body.totalAmount}`)
-    ) {
-      return res.status(400).json({ message: "Có lỗi xảy ra" });
+    const { cart, totalAmount } = req.body;
+
+    const productId = cart[0].productId;
+    const payablePrice = cart[0].payablePrice;
+    const quantity = cart[0].purchaseQty;
+
+    const payment = `id_product=${productId}&price=${payablePrice}&count=${quantity}&totalAmount=${totalAmount}`;
+    const key = `nguyenchihao`;
+    const signature = sha256(`${key}${payment}`);
+    // Check signature
+    if (req.body.signature !== signature) {
+      return res.status(400).json({ message: "Xác thực không thành công" });
     }
+    // Check Money
     const userId = req.userId;
     const user = await User.findById(userId);
     if (user.money < req.body.totalAmount) {
-      return res.status(400).json({ message: "Không đủ tiền" });
+      return res
+        .status(400)
+        .json({ message: "Không đủ tiền để thanh toán đơn hàng này" });
     }
 
     const cardId = req.body.cardId;
@@ -131,7 +150,7 @@ export const addOrder = async (req, res) => {
 
     res.status(200).json({
       status: "success",
-      message: "Ban da tao don hang thanh cong",
+      message: "Bạn đã tạo đơn hàng thành công",
       order,
     });
   } catch (error) {
