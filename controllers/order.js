@@ -56,16 +56,17 @@ export const checkOrder = async (req, res) => {
     let total = 0;
     const { cart, totalAmount } = req.body;
 
-    const productId = cart[0].productId;
-    const payablePrice = cart[0].payablePrice;
-    const product = await Products.findById(productId);
-    const quantity = cart[0].purchaseQty;
-
-    total += Number(product.price) * quantity;
-
-    if (Number(payablePrice) !== Number(product.price)) {
-      return res.status(400).json({ message: "Giá sản phẩm đã bị thay đổi" });
+    for (let i = 0; i < cart.length; i++) {
+      const productId = cart[0].productId;
+      const payablePrice = cart[0].payablePrice;
+      const product = await Products.findById(productId);
+      const quantity = cart[0].purchaseQty;
+      if (Number(payablePrice) !== Number(product.price)) {
+        return res.status(400).json({ message: "Giá sản phẩm đã bị thay đổi" });
+      }
+      total += Number(product.price) * quantity;
     }
+
     if (total !== totalAmount) {
       return res.status(400).json({ message: "Tổng số tiền đã bị thay đổi" });
     }
