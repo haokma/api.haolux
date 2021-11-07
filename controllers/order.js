@@ -88,11 +88,7 @@ export const checkOrder = async (req, res) => {
     res.status(200).json({
       status: "success",
       message: "Ban da tao ra key thành công cho đơn hàng ",
-      data: {
-        payablePrice,
-        quantity,
-        totalAmount,
-      },
+      cart,
       payment,
       signature,
     });
