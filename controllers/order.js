@@ -1,9 +1,11 @@
 import Cart from "../models/cart.js";
 import Order from "../models/order.js";
 import Products from "../models/products.js";
-import sha256 from "sha256";
 import User from "../models/user.js";
-
+import sha256 from "crypto-js/sha256.js";
+import Hex from "crypto-js/enc-hex.js";
+import encode from "nodejs-base64-encode";
+import { response } from "express";
 export const getOrders = async (req, res) => {
   try {
     const userId = req.userId;
@@ -67,10 +69,20 @@ export const checkOrder = async (req, res) => {
     if (total !== totalAmount) {
       return res.status(400).json({ message: "Tổng số tiền đã bị thay đổi" });
     }
-
-    const payment = `id_product=${productId}&price=${payablePrice}&count=${quantity}&totalAmount=${totalAmount}`;
-    const key = `nguyenchihao`;
-    const signature = sha256(`${key}${payment}`);
+    let payment = "";
+    for (let key in req.body) {
+      if (typeof req.body[key] === "string") {
+        payment += `${key}:${req.body[key]}` + `&`;
+      } else {
+        payment += `${key}:${JSON.stringify(req.body[key])}` + `&`;
+      }
+    }
+    payment = payment.substring(0, payment.length - 1).replace(/\"/g, "'");
+    const key = `nguyenchihao2001`;
+    const check = `${key}${payment}`;
+    const signature = Hex.stringify(sha256(check));
+    payment = payment + "&Signature:" + signature;
+    payment = encode.encode(payment, "base64");
 
     res.status(200).json({
       status: "success",
@@ -80,6 +92,7 @@ export const checkOrder = async (req, res) => {
         quantity,
         totalAmount,
       },
+      payment,
       signature,
     });
   } catch (error) {
@@ -88,23 +101,29 @@ export const checkOrder = async (req, res) => {
 };
 export const addOrder = async (req, res) => {
   try {
-    const { cart, totalAmount } = req.body;
-
-    const productId = cart[0].productId;
-    const payablePrice = cart[0].payablePrice;
-    const quantity = cart[0].purchaseQty;
-
-    const payment = `id_product=${productId}&price=${payablePrice}&count=${quantity}&totalAmount=${totalAmount}`;
-    const key = `nguyenchihao`;
-    const signature = sha256(`${key}${payment}`);
-    // Check signature
-    if (req.body.signature !== signature) {
-      return res.status(400).json({ message: "Xác thực không thành công" });
-    }
     // Check Money
+    const payment = encode.decode(req.body.payment, "base64");
+    const Position_of_Signature = payment.indexOf("&Signature:");
+    const Signature = payment.slice(Position_of_Signature + 11, payment.length);
+
+    const data = payment.slice(0, Position_of_Signature);
+    const key = `nguyenchihao2001`;
+    const check = `${key}${data}`;
+    if (Hex.stringify(sha256(check)) !== Signature) {
+      return res.status(400).json("Signature không hợp lệ có thể đã bị sửa");
+    }
+    const data_analysis = data.split("&");
+    const data_new = {};
+    for (let i = 0; i < data_analysis.length; i++) {
+      const arr = data_analysis[i].split(":");
+      const key = arr[0];
+      const value = arr[1];
+      data_new[key] = value;
+    }
+
     const userId = req.userId;
     const user = await User.findById(userId);
-    if (user.money < req.body.totalAmount) {
+    if (user.money < data_new["totalAmount"]) {
       return res
         .status(400)
         .json({ message: "Không đủ tiền để thanh toán đơn hàng này" });
@@ -132,7 +151,7 @@ export const addOrder = async (req, res) => {
       ],
       fee: req.body.fee,
       address: tempAddress,
-      totalAmount: req.body.totalAmount,
+      totalAmount: data_new["totalAmount"],
     };
 
     const order = await Order.create(tempOrder);
@@ -141,7 +160,7 @@ export const addOrder = async (req, res) => {
     await User.findByIdAndUpdate(
       userId,
       {
-        money: user.money - req.body.totalAmount,
+        money: user.money - data_new["totalAmount"],
       },
       {
         new: true,
