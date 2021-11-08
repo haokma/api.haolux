@@ -1,11 +1,11 @@
+import CryptoJs from "crypto-js";
+import Hex from "crypto-js/enc-hex.js";
+import sha256 from "crypto-js/sha256.js";
+import encode from "nodejs-base64-encode";
 import Cart from "../models/cart.js";
 import Order from "../models/order.js";
 import Products from "../models/products.js";
 import User from "../models/user.js";
-import sha256 from "crypto-js/sha256.js";
-import Hex from "crypto-js/enc-hex.js";
-import encode from "nodejs-base64-encode";
-import { response } from "express";
 export const getOrders = async (req, res) => {
   try {
     const userId = req.userId;
@@ -51,6 +51,30 @@ export const getOrder = async (req, res) => {
   }
 };
 
+export const getListOrder = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const order = await Order.find({
+      user: userId,
+    })
+      .populate("user", "name")
+      .populate("items.productId", "title price productImage");
+
+    if (!order)
+      return res.status(400).json({
+        status: "error",
+        error: "Khong tim thay don hang cua ban",
+      });
+
+    res.status(200).json({
+      status: "success",
+      order,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
 export const checkOrder = async (req, res) => {
   try {
     let total = 0;
@@ -90,7 +114,6 @@ export const checkOrder = async (req, res) => {
       message: "Ban da tao ra key thành công cho đơn hàng ",
       cart,
       payment,
-      signature,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -98,17 +121,31 @@ export const checkOrder = async (req, res) => {
 };
 export const addOrder = async (req, res) => {
   try {
-    // Check Money
-    const payment = encode.decode(req.body.payment, "base64");
-    const Position_of_Signature = payment.indexOf("&Signature:");
-    const Signature = payment.slice(Position_of_Signature + 11, payment.length);
+    const SIGNATURE = "265369676e61747572653a";
+    let payment = req.body.payment;
+    const payment_hex = Buffer.from(payment, "base64").toString("hex");
 
-    const data = payment.slice(0, Position_of_Signature);
-    const key = `nguyenchihao2001`;
-    const check = `${key}${data}`;
-    if (Hex.stringify(sha256(check)) !== Signature) {
+    const Position_of_Signature = payment_hex.indexOf(SIGNATURE);
+
+    const Signature_hex = payment_hex.slice(
+      Position_of_Signature + SIGNATURE.length,
+      payment_hex.length
+    );
+
+    const Data_hex = payment_hex.slice(0, Position_of_Signature);
+
+    const private_sign_key_hex =
+      Buffer.from("nguyenchihao2001").toString("hex");
+
+    const a = CryptoJs.SHA256(
+      CryptoJs.enc.Hex.parse(private_sign_key_hex + Data_hex)
+    ).toString();
+
+    if (a !== encode.decode(Signature_hex, "hex")) {
       return res.status(400).json("Signature không hợp lệ có thể đã bị sửa");
     }
+    const data = encode.decode(payment, "base64");
+
     const data_analysis = data.split("&");
     const data_new = {};
     for (let i = 0; i < data_analysis.length; i++) {

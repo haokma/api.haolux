@@ -6,6 +6,7 @@ import {
   updateOrder,
   deleteOrder,
   checkOrder,
+  getListOrder,
 } from "../controllers/order.js";
 import { signinRequire } from "../middleware/auth.js";
 import { createAddressValidate } from "../validate/address.js";
@@ -31,6 +32,7 @@ router.post(
 );
 
 router.get("/:id", signinRequire, getOrder);
+router.get("/get-order", signinRequire, getListOrder);
 
 router.post("/:id", signinRequire, updateOrder);
 
